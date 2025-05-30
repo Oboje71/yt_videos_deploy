@@ -1,36 +1,25 @@
-FROM python:3.10-slim
+# Используем официальный образ Python
+FROM python:3.9-slim
 
-# Установим системные зависимости
-# - ffmpeg: для обработки аудио/видео (используется yt-dlp)
-# - tini: простой init-процесс для правильной обработки сигналов и зомби-процессов в контейнере (рекомендуется для Gunicorn)
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    tini \
-    && rm -rf /var/lib/apt/lists/*
-
-# Устанавливаем рабочую директорию
+# Устанавливаем рабочую директорию в контейнере
 WORKDIR /app
 
-# Копируем файл с зависимостями и устанавливаем их
-COPY requirements.txt .
-# Обновляем pip и устанавливаем Gunicorn отдельно для лучшего кэширования слоев
-RUN pip install --no-cache-dir --upgrade pip
-RUN pip install --no-cache-dir gunicorn
+# Копируем файл зависимостей
+COPY requirements.txt requirements.txt
+
+# Устанавливаем зависимости
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копируем остальной код приложения
+# (Опционально) Если нужны системные зависимости, например, ffmpeg для обработки видео
+# RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+
+# Копируем остальной код приложения в рабочую директорию
 COPY . .
 
-# Указываем порт, который будет слушать контейнер (Gunicorn будет использовать переменную $PORT)
-# Render автоматически устанавливает переменную PORT.
-# Эта инструкция EXPOSE больше для документации и для локального запуска Docker.
+# Указываем порт, на котором будет работать приложение (Render обычно предоставляет его через переменную PORT)
+ENV PORT 8080
 EXPOSE 8080
 
-# Используем tini в качестве точки входа для корректного управления процессами
-ENTRYPOINT ["/usr/bin/tini", "--"]
-
-# Команда для запуска приложения через Gunicorn
-# Gunicorn будет слушать порт, указанный в переменной окружения PORT
-# app:app означает: файл app.py, переменная app (в которой Flask(__name__))
-# Настройки workers, threads, timeout можно будет подобрать позже.
-CMD gunicorn --bind "0.0.0.0:${PORT}" --workers 1 --threads 8 --timeout 120 app:app
+# Команда для запуска приложения (Render обычно использует Procfile, но это может быть здесь как CMD)
+# CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:$PORT"]
+# Если используешь Procfile, то CMD здесь может быть не так важен или может быть другим.
