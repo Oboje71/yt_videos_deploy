@@ -1,19 +1,4 @@
 Flask>=2.0
-requests # для скачивания файлов по URL, если нужно
-# --- Библиотеки для Google Drive API (если используешь Service Account или OAuth) ---
-# google-api-python-client
-# google-auth-httplib2
-# google-auth-oauthlib
-# --- Библиотеки для обработки аудио/видео (пример) ---
-# pydub # для простой работы с аудио
-# ffmpeg-python # обертка для ffmpeg, если он установлен в системе
-# --- Библиотеки для транскрибации ---
-# openai # если используешь OpenAI Whisper API
-# google-cloud-speech # если используешь Google Speech-to-Text
-# assemblyai # если используешь AssemblyAI
-# --- Библиотеки для LLM ---
-# openai # для ChatGPT
-# google-generativeai # для Gemini
-# --- Для работы с переменными окружения (если еще не используется Flask/Gunicorn) ---
-# python-dotenv # для локальной разработки с .env файлом
-gunicorn # для запуска Flask приложения на Render (обычно используется в Procfile)
+requests
+gunicorn
+openai
