@@ -1,84 +1,125 @@
-from flask import Flask, request, send_from_directory, jsonify
-import yt_dlp
-import os
-import uuid
-# import logging # Можно добавить, если app.logger не работает как ожидается
+# app.py
+from flask import Flask, request, jsonify
+import os # Для работы с переменными окружения (API ключи)
+
+# --- Сюда нужно будет импортировать библиотеки для: ---
+# 1. Работы с Google Drive API (если нужно скачивать файл не по прямой ссылке)
+#    Например: from googleapiclient.discovery import build (и другие)
+# 2. Скачивания файла по URL (если ссылка прямая)
+#    Например: import requests
+# 3. Обработки аудио/видео (если нужно извлечь аудио)
+#    Например: from pydub import AudioSegment (или использовать ffmpeg через subprocess)
+# 4. Транскрибации аудио в текст
+#    Например: from openai import OpenAI (если используешь Whisper API)
+#    или клиент для другого сервиса транскрибации
+# 5. Работы с API ChatGPT/Gemini
+#    Например: from openai import OpenAI (для ChatGPT)
+#    или from google.generativeai import GenerativeModel (для Gemini)
 
 app = Flask(__name__)
-# Если используете стандартный logging:
-# logging.basicConfig(level=logging.INFO)
 
-DOWNLOAD_DIR = "audio"
-# Используем абсолютный путь внутри контейнера для большей надежности
-# WORKDIR в Dockerfile /app, поэтому APP_ROOT будет /app
-APP_ROOT = os.path.dirname(os.path.abspath(__file__))
-DOWNLOAD_DIR_ABS = os.path.join(APP_ROOT, DOWNLOAD_DIR)
+# --- Получение API ключей из переменных окружения ---
+# Эти ключи нужно будет настроить в переменных окружения на Render
+# OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+# GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY') # для Gemini или Google Drive
+# И другие ключи, если нужны
 
-os.makedirs(DOWNLOAD_DIR_ABS, exist_ok=True)
-app.logger.info(f"Audio download directory is: {DOWNLOAD_DIR_ABS}") # Логируем путь
+# --- (Опционально) Инициализация клиентов API ---
+# if OPENAI_API_KEY:
+#     openai_client = OpenAI(api_key=OPENAI_API_KEY)
+# if GOOGLE_API_KEY:
+#     # gemini_model = GenerativeModel("gemini-pro") # Пример для Gemini
+#     pass
 
-@app.route('/download', methods=['POST'])
-def download_audio():
-    data = request.get_json()
-    url = data.get('url')
 
-    if not url:
-        app.logger.warning("Missing URL in request")
-        return jsonify({"error": "Missing URL"}), 400
+@app.route('/')
+def home():
+    return "Сервис обработки видео активен!"
 
-    filename = f"{uuid.uuid4()}.mp3"
-    # Сохраняем в абсолютный путь
-    output_path = os.path.join(DOWNLOAD_DIR_ABS, filename)
-    app.logger.info(f"Attempting to download URL: {url} to output path: {output_path}")
-
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'outtmpl': output_path,
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
-        'quiet': False, # ВРЕМЕННО отключаем quiet для подробных логов yt-dlp
-        'verbose': True, # ВРЕМЕННО для еще более подробных логов
-        # 'noprogress': True, # Можно добавить, если прогресс мешает логам
-    }
-
+@app.route('/api/process-video', methods=['POST'])
+def process_video_endpoint():
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            app.logger.info(f"Starting download for: {url}")
-            ydl.download([url])
-            app.logger.info(f"Download process finished for: {url}")
+        # 1. Получаем данные от Make.com
+        data = request.get_json()
+        if not data:
+            return jsonify({"status": "error", "message": "No data provided"}), 400
+
+        user_telegram_id = data.get('user_telegram_id')
+        google_drive_link = data.get('google_drive_link')
+        # Можно добавить получение промта или других параметров от Make.com
+        # custom_prompt_instructions = data.get('prompt_instructions', "Сделай краткое самари этого видео.")
+
+        if not user_telegram_id or not google_drive_link:
+            return jsonify({"status": "error", "message": "Missing user_telegram_id or google_drive_link"}), 400
+
+        # --- Шаг 2: Получение и обработка видео ---
+        # Это самая сложная часть, здесь будет много логики
+        # 2.1. Скачивание видео с Google Drive (или получение прямого доступа к контенту)
+        #      Потребуется либо работа с Google Drive API, либо если ссылка прямая,
+        #      то использование библиотеки вроде 'requests'.
+        #      Нужно будет сохранить файл временно или обрабатывать в памяти.
+        #      Пример: video_file_path = download_video_from_gdrive(google_drive_link)
+
+        # 2.2. (Если нужно) Извлечение аудио из видео
+        #      Пример: audio_file_path = extract_audio(video_file_path)
+
+        # 2.3. Транскрибация аудио в текст
+        #      Пример: transcript_text = transcribe_audio(audio_file_path, openai_client) # если используем Whisper
+        #      Если видео короткое и LLM может принять аудио напрямую (редко для больших моделей), этот шаг может быть другим.
+        #      Для MVP, если видео это просто запись голоса, можно начать с аудиофайлов.
+
+        # --- Шаг 3: Взаимодействие с LLM (ChatGPT/Gemini) ---
+        # Используем transcript_text
+        # final_prompt = f"{custom_prompt_instructions}\n\nТранскрипция видео:\n{transcript_text}" # Пример
         
-        # Проверка существования файла и его размера СРАЗУ ПОСЛЕ СКАЧИВАНИЯ
-        if os.path.exists(output_path):
-            file_size = os.path.getsize(output_path)
-            app.logger.info(f"File {output_path} CREATED. Size: {file_size} bytes.")
-            if file_size == 0:
-                app.logger.warning(f"File {output_path} is EMPTY (0 bytes).")
-        else:
-            app.logger.error(f"File {output_path} NOT FOUND after download attempt.")
-            # Если файл не найден, возможно, не стоит возвращать download_url
-            # return jsonify({"error": "File not created after download"}), 500 
-            # Пока оставим как есть, но это место для улучшения
+        # Пример для OpenAI (ChatGPT):
+        # response_llm = openai_client.chat.completions.create(
+        #    model="gpt-3.5-turbo", # или gpt-4
+        #    messages=[{"role": "user", "content": final_prompt}]
+        # )
+        # processed_text = response_llm.choices[0].message.content
 
-        return jsonify({"download_url": f"/audio/{filename}"})
+        # ЗАГЛУШКА для MVP, пока нет полной интеграции:
+        transcript_text = "Это заглушка транскрипции для видео по ссылке: " + google_drive_link
+        processed_text = "Это заглушка результата от LLM для транскрипции: " + transcript_text + ". Ваш формат будет здесь."
+        # КОНЕЦ ЗАГЛУШКИ
+
+        # --- Шаг 4: Возвращаем результат в Make.com ---
+        return jsonify({
+            "status": "success",
+            "user_telegram_id": user_telegram_id, # Возвращаем для удобства
+            "processed_text": processed_text,
+            # "original_transcript": transcript_text # Опционально
+        }), 200
+
     except Exception as e:
-        app.logger.error(f"Error during download or processing for URL {url}: {str(e)}", exc_info=True) # exc_info для traceback
-        return jsonify({"error": str(e)}), 500
+        # Логирование ошибки (очень важно на практике)
+        print(f"Error processing video: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/audio/<path:filename>', methods=['GET'])
-def serve_file(filename):
-    app.logger.info(f"Attempting to serve file: {filename} from directory: {DOWNLOAD_DIR_ABS}")
-    # Проверка существования файла перед отдачей
-    file_to_serve_path = os.path.join(DOWNLOAD_DIR_ABS, filename)
-    if not os.path.exists(file_to_serve_path):
-        app.logger.error(f"File {filename} NOT FOUND at {file_to_serve_path} for serving.")
-        return jsonify({"error": "File not found on server"}), 404
-    
-    app.logger.info(f"Serving file: {file_to_serve_path}")
-    return send_from_directory(DOWNLOAD_DIR_ABS, filename, as_attachment=False) # as_attachment=False чтобы браузер пытался отобразить
+# --- Ниже могут быть твои функции-хелперы ---
+# def download_video_from_gdrive(link):
+#     # Логика скачивания/доступа к файлу на Google Drive
+#     # ...
+#     # return "path/to/downloaded/video.mp4"
+#     pass
+
+# def extract_audio(video_path):
+#     # Логика извлечения аудио (например, с помощью ffmpeg или pydub)
+#     # ...
+#     # return "path/to/extracted/audio.mp3"
+#     pass
+
+# def transcribe_audio(audio_path, client):
+#     # Логика транскрибации (например, через OpenAI Whisper API)
+#     # audio_file = open(audio_path, "rb")
+#     # transcript = client.audio.transcriptions.create(
+#     #   model="whisper-1",
+#     #   file=audio_file
+#     # )
+#     # return transcript.text
+#     pass
 
 if __name__ == '__main__':
-    # Для локального запуска, на Railway порт будет управляться платформой
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
+    # Для локального тестирования. Render использует Procfile для запуска.
+    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('
