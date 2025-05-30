@@ -33,4 +33,4 @@ ENTRYPOINT ["/usr/bin/tini", "--"]
 # Gunicorn будет слушать порт, указанный в переменной окружения PORT
 # app:app означает: файл app.py, переменная app (в которой Flask(__name__))
 # Настройки workers, threads, timeout можно будет подобрать позже.
-CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "--workers", "1", "--threads", "8", "--timeout", "120", "app:app"]
+CMD ["sh", "-c", "echo The port is $PORT && gunicorn --bind 0.0.0.0:$PORT --workers 1 app:app"]
